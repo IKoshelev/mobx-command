@@ -7,6 +7,11 @@ declare global {
     }
 }
 
+if(!Promise.prototype.finally) {
+    throw new Error("mobx command relies on Promise.finally method, which was not detected." +
+                    "You can shim it with packages like 'promise.prototype.finally' and '@types/promise.prototype.finally'.");
+}
+
 export type canExecuteResult = boolean|Promise<boolean>;
 
 export interface ICommand<T extends (...args: any[]) => any>  {
