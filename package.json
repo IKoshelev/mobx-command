@@ -2,6 +2,7 @@
   "name": "mobx-command",
   "version": "0.1.0",
   "description": "Command pattern implementation for MobX",
+  "keywords": ["MobX","Command","Command-pattern"],
   "main": "./lib/src/index.js",
   "types": "./lib/src/index.d.ts",
   "scripts": {
