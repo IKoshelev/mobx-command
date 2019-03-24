@@ -3,6 +3,10 @@
 This is an implementation of Command pattern for MobX. It takes two functions, `execute` and `canExecute`, 
 both can return a promise that will be used for tracking purposes.
 
+Available via NPM:
+
+`npm install mobx-command`
+
 Tests sumarize the api well, here is short version:
 
 ```typescript
