@@ -47,13 +47,15 @@ describe('command ', () => {
 
     it('should pass parameters to original function', () => {
 
-        var com = command((d, e) => {
+        var com = command((d:number, e:number) => {
             expect(d).to.equal(1);
             expect(e).to.equal(2);
-            return true;
+            return d + e;
         });
 
-        com.execute(1, 2);
+        let result = com.execute(1, 2);
+
+        expect(result).to.equal(3);
     });
 
     it('when canExecute is not passed, default is always true', () => {
