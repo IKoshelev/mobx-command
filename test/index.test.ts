@@ -4,9 +4,6 @@ import { observable } from 'mobx';
 
 import { command } from './../src/index';
 
-//todo typescript couldn't find setTimeout?
-declare function setTimeout(a: any, b: any): void;
-
 const delay = (ms: number = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('command ', () => {
