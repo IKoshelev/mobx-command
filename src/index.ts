@@ -1,4 +1,4 @@
-import { observable, autorun } from 'mobx';
+import { observable, autorun, runInAction } from 'mobx';
 import { LiftReadonly } from './LiftReadonly';
 
 declare global {
@@ -7,9 +7,9 @@ declare global {
     }
 }
 
-type canExecuteResult = boolean|Promise<boolean>;
+export type canExecuteResult = boolean|Promise<boolean>;
 
-interface ICommand<T extends (...args: any[]) => any>  {
+export interface ICommand<T extends (...args: any[]) => any>  {
     readonly canExecuteCombined: boolean,
     readonly isExecuting: boolean,   
     readonly canExecuteFromFn: boolean,
@@ -20,7 +20,7 @@ interface ICommand<T extends (...args: any[]) => any>  {
 	execute:(...p: Parameters<T>) => ReturnType<T>
 }
 
-interface ICommandOptions<T extends (...args: any[]) => any> {
+export interface ICommandOptions<T extends (...args: any[]) => any> {
 	canExecute?: () => canExecuteResult,
 	execute:(...p: Parameters<T>) => ReturnType<T>
 }
@@ -95,12 +95,12 @@ function isPromise<T>(target: T|Promise<T>): target is Promise<T>{
                 command.canExecuteFromFn = false;
                 command.isCanExecuteAsyncRunning = true;
                 resultOrResultPromise
-                    .then(  (result) => command.canExecuteFromFn = result,
-                            (reason) => {
+                    .then(  (result) => runInAction(() => command.canExecuteFromFn = result),
+                            (reason) => runInAction(() =>  {
                                 command.canExecuteAsyncRejectReason = reason;
-                                return Promise.reject(reason);   
-                            })
-                    .finally(() => command.isCanExecuteAsyncRunning = false);
+                                return Promise.reject(reason);  
+                            }))
+                    .finally(() => runInAction(() => command.isCanExecuteAsyncRunning = false));
                 
                 return;
             }
