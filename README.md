@@ -18,7 +18,7 @@ class UserDetailsVm {
         execute: async (skipConfirmation: boolean = false) => {
             let confirmation = skipConfirmation || await confirmSensitiveAction("Are you sure?");
             if (!confirmation) {
-                return;
+                return 0;
             }
             let operationId = await userServiceClient.resetUserPasswrod(this.userId);
             return operationId;
@@ -34,8 +34,11 @@ let userDetailsVm = new UserDetailsVm();
 //It is up to the user to check this flag before calling execute
 userDetailsVm.resetPassword.canExecuteCombined; 
 
-//execute command. Does not perform checks, forces execution
-let operationId = userDetailsVm.resetPassword.execute(true);
+//execute command if canExecuteCombined is true. 
+let operationId1: number | undefined = userDetailsVm.resetPassword.executeIfCan(true);
+
+//execute command. Does not perform checks, forces execution.
+let operationId2: number = userDetailsVm.resetPassword.executeForced(true);
 
 //more granular flags, all mobx observable or computed
 

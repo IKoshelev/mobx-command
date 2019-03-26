@@ -14,7 +14,7 @@ if (!Promise.prototype.finally) {
 
 export type canExecuteResult = boolean | Promise<boolean>;
 
-export interface ICommand<T extends Function> {
+export interface ICommand<T extends (...args: any[]) => any> {
     readonly canExecuteCombined: boolean,
     readonly isExecuting: boolean,
     readonly canExecuteFromFn: boolean,
@@ -23,7 +23,7 @@ export interface ICommand<T extends Function> {
 
     canExecuteFromFnRaw: canExecuteResult,
     executeForced: T
-    executeIfCan: T
+    executeIfCan: (...p:Parameters<T>) => ReturnType<T>|undefined
 }
 
 export interface ICommandOptions<T extends Function> {
