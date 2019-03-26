@@ -22,7 +22,8 @@ export interface ICommand<T extends Function> {
     readonly canExecuteAsyncRejectReason: any,
 
     canExecuteFromFnRaw: canExecuteResult,
-    execute: T
+    executeForced: T
+    executeIfCan: T
 }
 
 export interface ICommandOptions<T extends Function> {
@@ -78,11 +79,18 @@ export const command = function <TReturn, T extends (...args: any[]) => TReturn>
             return !this.isExecuting && this.canExecuteFromFn;
         },
 
-        execute: function () {
+        executeForced() {
             command.isExecuting = true;
             var resultOrResultPromise = options.execute.apply(this, <any>arguments);
             setIsExecutingToFalse(resultOrResultPromise, command);
             return resultOrResultPromise;
+        },
+
+        executeIfCan() {
+            if (this.canExecuteCombined === false) {
+                return
+            }
+            return this.executeForced();
         },
 
         get canExecuteFromFnRaw() {

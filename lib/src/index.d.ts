@@ -11,7 +11,8 @@ export interface ICommand<T extends Function> {
     readonly isCanExecuteAsyncRunning: boolean;
     readonly canExecuteAsyncRejectReason: any;
     canExecuteFromFnRaw: canExecuteResult;
-    execute: T;
+    executeForced: T;
+    executeIfCan: T;
 }
 export interface ICommandOptions<T extends Function> {
     canExecute?: () => canExecuteResult;

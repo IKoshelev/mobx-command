@@ -21,7 +21,7 @@ describe('command ', () => {
             return true;
         });
 
-        com.execute();
+        com.executeForced();
 
         expect(counter).to.equal(1);
     });
@@ -37,7 +37,7 @@ describe('command ', () => {
             }
         });
 
-        com.execute();
+        com.executeForced();
 
         expect(counter).to.equal(1);
     });
@@ -50,9 +50,49 @@ describe('command ', () => {
             return d + e;
         });
 
-        let result = com.execute(1, 2);
+        let result = com.executeForced(1, 2);
 
         expect(result).to.equal(3);
+    });
+
+    it('has executeIfCan and executeForced functions that execute command with or without check', () => {
+
+        var counter = 0;
+
+        var trigger = observable({
+            canExecute: false
+        });
+
+        var com = command({
+            execute: () => {
+                counter += 1;
+                return true;
+            },
+            canExecute: () => {
+                return trigger.canExecute;
+            }
+        });
+
+        expect(com.canExecuteCombined).to.equal(false);
+
+        let res = com.executeIfCan();
+       
+        expect(counter).to.equal(0);
+        expect(res).to.equal(undefined);
+       
+        res = com.executeForced();
+
+        expect(counter).to.equal(1);
+        expect(res).to.equal(true);
+
+        trigger.canExecute = true;
+
+        expect(com.canExecuteCombined).to.equal(true);
+
+        res = com.executeIfCan();
+       
+        expect(counter).to.equal(2);
+        expect(res).to.equal(true);
     });
 
     it('when canExecute is not passed, default is always true', () => {
@@ -180,7 +220,7 @@ describe('command ', () => {
         expect(com.canExecuteCombined).to.equal(true);
         expect(com.canExecuteFromFn).to.equal(true);
 
-        com.execute();
+        com.executeForced();
 
         expect(com.isExecuting).to.equal(true);
         expect(com.canExecuteCombined).to.equal(false);
