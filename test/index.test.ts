@@ -95,6 +95,49 @@ describe('command ', () => {
         expect(res).to.equal(true);
     });
 
+    it('both executeIfCan and executeForced are bound', () => {
+
+        var counter = 0;
+
+        var trigger = observable({
+            canExecute: false
+        });
+
+        var com = command({
+            execute: () => {
+                counter += 1;
+                return true;
+            },
+            canExecute: () => {
+                return trigger.canExecute;
+            }
+        });
+
+        let executeIfCan =  com.executeIfCan;
+        let executeForced = com.executeForced;
+
+        expect(com.canExecuteCombined).to.equal(false);
+
+        let res = executeIfCan();
+       
+        expect(counter).to.equal(0);
+        expect(res).to.equal(undefined);
+       
+        res = executeForced();
+
+        expect(counter).to.equal(1);
+        expect(res).to.equal(true);
+
+        trigger.canExecute = true;
+
+        expect(com.canExecuteCombined).to.equal(true);
+
+        res = executeIfCan();
+       
+        expect(counter).to.equal(2);
+        expect(res).to.equal(true);
+    });
+
     it('when canExecute is not passed, default is always true', () => {
 
         var com = command(() => {

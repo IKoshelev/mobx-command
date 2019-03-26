@@ -70,27 +70,27 @@ export const command = function <TReturn, T extends (...args: any[]) => TReturn>
 
     var options = normaliseOptions(optionsOrFunc);
 
-    var command = observable.object(<LiftReadonly<ICommand<T>>>{
+    var command:LiftReadonly<ICommand<T>> = observable.object(<LiftReadonly<ICommand<T>>>{
         canExecuteFromFn: true,
         isExecuting: false,
         isCanExecuteAsyncRunning: false,
         canExecuteAsyncRejectReason: undefined,
         get canExecuteCombined() {
-            return !this.isExecuting && this.canExecuteFromFn;
+            return !command.isExecuting && command.canExecuteFromFn;
         },
 
         executeForced() {
             command.isExecuting = true;
-            var resultOrResultPromise = options.execute.apply(this, <any>arguments);
+            var resultOrResultPromise = options.execute.apply(undefined, <any>arguments);
             setIsExecutingToFalse(resultOrResultPromise, command);
             return resultOrResultPromise;
         },
 
         executeIfCan() {
-            if (this.canExecuteCombined === false) {
+            if (command.canExecuteCombined === false) {
                 return
             }
-            return this.executeForced();
+            return command.executeForced();
         },
 
         get canExecuteFromFnRaw() {
