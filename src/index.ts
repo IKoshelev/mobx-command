@@ -1,5 +1,4 @@
 import { observable, autorun, action, runInAction, configure } from 'mobx';
-import { LiftReadonly } from './LiftReadonly';
 
 configure({
     enforceActions: true

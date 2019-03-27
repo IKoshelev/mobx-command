@@ -10,6 +10,8 @@ Available via NPM:
 Tests sumarize the api well, here is short version:
 
 ```typescript
+import { command } from 'mobx-command';
+
 class UserDetailsVm {
 
     public userId: number = 5;
