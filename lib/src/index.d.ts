@@ -4,7 +4,7 @@ declare global {
     }
 }
 export declare type canExecuteResult = boolean | Promise<boolean>;
-export interface ICommand<T extends (...args: any[]) => any> {
+export interface ICommand<TReturn, T extends (...args: any[]) => TReturn> {
     readonly canExecuteCombined: boolean;
     readonly isExecuting: boolean;
     readonly canExecuteFromFn: boolean;
@@ -14,9 +14,9 @@ export interface ICommand<T extends (...args: any[]) => any> {
     executeForced: T;
     executeIfCan: (...p: Parameters<T>) => ReturnType<T> | undefined;
 }
-export interface ICommandOptions<T extends (...args: any[]) => any> {
+export interface ICommandOptions<TReturn, T extends (...args: any[]) => TReturn> {
     canExecute?: () => canExecuteResult;
     evaluateCanExecuteImmediately?: boolean;
     execute: T;
 }
-export declare const command: <TReturn, T extends (...args: any[]) => TReturn>(optionsOrFunc: T | ICommandOptions<T>) => ICommand<T>;
+export declare const command: <TReturn, T extends (...args: any[]) => TReturn>(optionsOrFunc: T | ICommandOptions<TReturn, T>) => ICommand<TReturn, T>;
