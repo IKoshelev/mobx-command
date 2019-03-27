@@ -42,6 +42,22 @@ describe('command ', () => {
         expect(counter).to.equal(1);
     });
 
+    it('execute can have void return type', () => {
+
+        var counter = 0;
+
+        var com = command({
+            execute: () => {
+                counter += 1;
+            }, 
+            canExecute: () => true
+        });
+
+        com.executeForced();
+
+        expect(counter).to.equal(1);
+    });
+
     it('should pass parameters to original function', () => {
 
         var com = command((d:number, e:number) => {

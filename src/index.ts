@@ -17,7 +17,7 @@ if (!Promise.prototype.finally) {
 
 export type canExecuteResult = boolean | Promise<boolean>;
 
-export interface ICommand<TReturn, T extends (...args: any[]) => TReturn> {
+export interface ICommand<T extends (...args: any[]) => unknown> {
     readonly canExecuteCombined: boolean,
     readonly isExecuting: boolean,
     readonly canExecuteFromFn: boolean,
@@ -29,7 +29,7 @@ export interface ICommand<TReturn, T extends (...args: any[]) => TReturn> {
     executeIfCan: (...p: Parameters<T>) => ReturnType<T> | undefined
 }
 
-export interface ICommandOptions<TReturn, T extends (...args: any[]) => TReturn> {
+export interface ICommandOptions<T extends (...args: any[]) => unknown> {
     canExecute?: () => canExecuteResult,
     evaluateCanExecuteImmediately?: boolean
     execute: T
@@ -45,11 +45,11 @@ function isPromise<T>(target: T | Promise<T>): target is Promise<T> {
     return false;
 }
 
-function normaliseOptions<TReturn, T extends (...args: any[]) =>TReturn,>(optionsOrFunc: T | ICommandOptions<TReturn, T>) {
+function normaliseOptions<T extends (...args: any[]) =>unknown,>(optionsOrFunc: T | ICommandOptions<T>) {
 
-    var options = <ICommandOptions<TReturn, T>>{};
+    var options = <ICommandOptions<T>>{};
 
-    let cast = <ICommandOptions<TReturn,T>>optionsOrFunc;
+    let cast = <ICommandOptions<T>>optionsOrFunc;
 
     options.execute = cast.execute || optionsOrFunc;
 
@@ -75,7 +75,7 @@ function setIsExecutingToFalse(
     commandState.isExecuting = false;
 }
 
-export const command = function <TReturn, T extends (...args: any[]) => TReturn>(optionsOrFunc: T | ICommandOptions<TReturn,T>) {
+export const command = function <T extends (...args: any[]) => unknown>(optionsOrFunc: T | ICommandOptions<T>) {
 
     var options = normaliseOptions(optionsOrFunc);
 
@@ -86,7 +86,7 @@ export const command = function <TReturn, T extends (...args: any[]) => TReturn>
         canExecuteAsyncRejectReason: undefined
     });
 
-    var command = <ICommand<TReturn,T>>{
+    var command = <ICommand<T>>{
         get canExecuteFromFn() {
             initIfNotYet();
             return commandState.canExecuteFromFn;
@@ -137,24 +137,27 @@ export const command = function <TReturn, T extends (...args: any[]) => TReturn>
         autorun(() => {
 
             let resultOrResultPromise = command.canExecuteFromFnRaw;
-            commandState.canExecuteAsyncRejectReason = undefined;
 
-            if (isPromise(resultOrResultPromise)) {
-                commandState.canExecuteFromFn = false;
-                commandState.isCanExecuteAsyncRunning = true;
-                resultOrResultPromise
-                    .then((result) => runInAction(() => commandState.canExecuteFromFn = result),
-                        (reason) => runInAction(() => {
-                            commandState.canExecuteAsyncRejectReason = reason;
-                            return Promise.reject(reason);
-                        }))
-                    .finally(() => runInAction(() => commandState.isCanExecuteAsyncRunning = false));
+            runInAction(() => {
+                commandState.canExecuteAsyncRejectReason = undefined;
 
-                return;
-            }
+                if (isPromise(resultOrResultPromise)) {
+                    commandState.canExecuteFromFn = false;
+                    commandState.isCanExecuteAsyncRunning = true;
+                    resultOrResultPromise
+                        .then((result) => runInAction(() => commandState.canExecuteFromFn = result),
+                            (reason) => runInAction(() => {
+                                commandState.canExecuteAsyncRejectReason = reason;
+                                return Promise.reject(reason);
+                            }))
+                        .finally(() => runInAction(() => commandState.isCanExecuteAsyncRunning = false));
 
-            commandState.canExecuteFromFn = !!resultOrResultPromise;
-            commandState.isCanExecuteAsyncRunning = false;
+                    return;
+                }
+
+                commandState.canExecuteFromFn = !!resultOrResultPromise;
+                commandState.isCanExecuteAsyncRunning = false;
+            });
         });
     };
 
@@ -163,5 +166,5 @@ export const command = function <TReturn, T extends (...args: any[]) => TReturn>
         initIfNotYet();
     }
 
-    return <ICommand<TReturn,T>>command;
+    return <ICommand<T>>command;
 };
