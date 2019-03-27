@@ -1,6 +1,6 @@
 {
   "name": "mobx-command",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Command pattern implementation for MobX",
   "keywords": [
     "MobX",
@@ -11,6 +11,7 @@
   "types": "./lib/src/index.d.ts",
   "scripts": {
     "test": "mocha ./lib/test/**/*.js -w",
+    "test-debug": "mocha ./lib/test/**/*.js -w --inspect-brk",
     "lint": "tslint \" src/**/*.ts*\""
   },
   "author": "Ivan Koshelev",

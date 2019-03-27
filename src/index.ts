@@ -1,5 +1,9 @@
-import { observable, autorun, runInAction } from 'mobx';
+import { observable, autorun, action, runInAction, configure } from 'mobx';
 import { LiftReadonly } from './LiftReadonly';
+
+configure({
+    enforceActions: true
+});
 
 declare global {
     interface Promise<T> {
@@ -23,11 +27,12 @@ export interface ICommand<T extends (...args: any[]) => any> {
 
     canExecuteFromFnRaw: canExecuteResult,
     executeForced: T
-    executeIfCan: (...p:Parameters<T>) => ReturnType<T>|undefined
+    executeIfCan: (...p: Parameters<T>) => ReturnType<T> | undefined
 }
 
-export interface ICommandOptions<T extends Function> {
+export interface ICommandOptions<T extends (...args: any[]) => any> {
     canExecute?: () => canExecuteResult,
+    evaluateCanExecuteImmediately?: boolean
     execute: T
 }
 
@@ -41,86 +46,123 @@ function isPromise<T>(target: T | Promise<T>): target is Promise<T> {
     return false;
 }
 
-function normaliseOptions<T extends Function>(optionsOrFunc: T | ICommandOptions<T>) {
+function normaliseOptions<T extends (...args: any[]) => any>(optionsOrFunc: T | ICommandOptions<T>) {
 
     var options = <ICommandOptions<T>>{};
 
-    options.execute = (<ICommandOptions<T>>optionsOrFunc).execute || optionsOrFunc;
+    let cast = <ICommandOptions<T>>optionsOrFunc;
 
-    options.canExecute = (<ICommandOptions<T>>optionsOrFunc).canExecute || (() => true);
+    options.execute = cast.execute || optionsOrFunc;
+
+    options.canExecute = cast.canExecute || (() => true);
+
+    options.evaluateCanExecuteImmediately = cast.evaluateCanExecuteImmediately;
 
     return options;
 }
 
-function setIsExecutingToFalse<TReturn, T extends (...args: any[]) => TReturn>(resultOrResultPromise: any | Promise<any>,
-    command: LiftReadonly<ICommand<T>>) {
+function setIsExecutingToFalse(
+    resultOrResultPromise: any | Promise<any>,
+    commandState: { isExecuting: boolean }) {
 
     if (isPromise(resultOrResultPromise)) {
 
         resultOrResultPromise.finally(() => {
-            command.isExecuting = false;
+            commandState.isExecuting = false;
         });
         return;
     }
 
-    command.isExecuting = false;
+    commandState.isExecuting = false;
 }
 
 export const command = function <TReturn, T extends (...args: any[]) => TReturn>(optionsOrFunc: T | ICommandOptions<T>) {
 
     var options = normaliseOptions(optionsOrFunc);
 
-    var command:LiftReadonly<ICommand<T>> = observable.object(<LiftReadonly<ICommand<T>>>{
-        canExecuteFromFn: true,
+    const commandState = observable.object({
+        canExecuteFromFn: false,
         isExecuting: false,
         isCanExecuteAsyncRunning: false,
-        canExecuteAsyncRejectReason: undefined,
-        get canExecuteCombined() {
-            return !command.isExecuting && command.canExecuteFromFn;
-        },
+        canExecuteAsyncRejectReason: undefined
+    });
 
-        executeForced() {
-            command.isExecuting = true;
-            var resultOrResultPromise = options.execute.apply(undefined, <any>arguments);
-            setIsExecutingToFalse(resultOrResultPromise, command);
-            return resultOrResultPromise;
+    var command = <ICommand<T>>{
+        get canExecuteFromFn() {
+            initIfNotYet();
+            return commandState.canExecuteFromFn;
         },
-
-        executeIfCan() {
-            if (command.canExecuteCombined === false) {
-                return
-            }
-            return command.executeForced();
+        get isExecuting() {            
+            initIfNotYet();
+            return commandState.isExecuting;
         },
-
-        get canExecuteFromFnRaw() {
+        get isCanExecuteAsyncRunning() {           
+            initIfNotYet();
+            return commandState.isCanExecuteAsyncRunning;
+        },
+        get canExecuteAsyncRejectReason() {            
+            initIfNotYet();
+            return commandState.canExecuteAsyncRejectReason;
+        },
+        get canExecuteCombined() {          
+            initIfNotYet();
+            return !commandState.isExecuting && commandState.canExecuteFromFn;
+        },
+        get canExecuteFromFnRaw() {          
+            initIfNotYet();
             let resultOrResultPromise = (<() => canExecuteResult>options.canExecute)();
             return resultOrResultPromise;
         }
+    }
+
+    command.executeForced = action(<T>function () {
+        commandState.isExecuting = true;
+        var resultOrResultPromise = options.execute.apply(undefined, <any>arguments);
+        setIsExecutingToFalse(resultOrResultPromise, commandState);
+        return resultOrResultPromise;
     });
 
-    autorun(() => {
+    command.executeIfCan = <(...p: Parameters<T>) => ReturnType<T> | undefined>function () {
+        if (command.canExecuteCombined === false) {
+            return
+        }
+        return command.executeForced();
+    }
 
-        let resultOrResultPromise = command.canExecuteFromFnRaw;
-        command.canExecuteAsyncRejectReason = undefined;
-
-        if (isPromise(resultOrResultPromise)) {
-            command.canExecuteFromFn = false;
-            command.isCanExecuteAsyncRunning = true;
-            resultOrResultPromise
-                .then((result) => runInAction(() => command.canExecuteFromFn = result),
-                    (reason) => runInAction(() => {
-                        command.canExecuteAsyncRejectReason = reason;
-                        return Promise.reject(reason);
-                    }))
-                .finally(() => runInAction(() => command.isCanExecuteAsyncRunning = false));
-
+    let initDone = false;
+    const initIfNotYet = () => {
+        if (initDone) {
             return;
         }
+        initDone = true;
+        autorun(() => {
 
-        command.canExecuteFromFn = resultOrResultPromise;
-        command.isCanExecuteAsyncRunning = false;
-    });
+            let resultOrResultPromise = command.canExecuteFromFnRaw;
+            commandState.canExecuteAsyncRejectReason = undefined;
+
+            if (isPromise(resultOrResultPromise)) {
+                commandState.canExecuteFromFn = false;
+                commandState.isCanExecuteAsyncRunning = true;
+                resultOrResultPromise
+                    .then((result) => runInAction(() => commandState.canExecuteFromFn = result),
+                        (reason) => runInAction(() => {
+                            commandState.canExecuteAsyncRejectReason = reason;
+                            return Promise.reject(reason);
+                        }))
+                    .finally(() => runInAction(() => commandState.isCanExecuteAsyncRunning = false));
+
+                return;
+            }
+
+            commandState.canExecuteFromFn = !!resultOrResultPromise;
+            commandState.isCanExecuteAsyncRunning = false;
+        });
+    };
+
+    if(options.evaluateCanExecuteImmediately)
+    {
+        initIfNotYet();
+    }
 
     return <ICommand<T>>command;
 };

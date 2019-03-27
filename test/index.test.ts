@@ -1,6 +1,6 @@
 import * as mocha from 'mocha';
 import { expect } from 'chai';
-import { observable } from 'mobx';
+import { observable, runInAction } from 'mobx';
 
 import { command } from './../src/index';
 
@@ -85,7 +85,7 @@ describe('command ', () => {
         expect(counter).to.equal(1);
         expect(res).to.equal(true);
 
-        trigger.canExecute = true;
+        runInAction(() => trigger.canExecute = true);
 
         expect(com.canExecuteCombined).to.equal(true);
 
@@ -128,7 +128,7 @@ describe('command ', () => {
         expect(counter).to.equal(1);
         expect(res).to.equal(true);
 
-        trigger.canExecute = true;
+        runInAction(() => trigger.canExecute = true);
 
         expect(com.canExecuteCombined).to.equal(true);
 
@@ -149,18 +149,63 @@ describe('command ', () => {
         expect(com.isCanExecuteAsyncRunning).to.equal(false);
     });
 
-    it('when canExecute function is passed, it is used', () => {
+    it('when canExecute function is passed, it is used, lazily', () => {
+
+        let counter = 0;
 
         var com = command({
             execute: () => {
                 return true;
             },
-            canExecute: () => false
+            canExecute: () => {
+                counter += 1;
+                return false;
+            }
         });
 
+        expect(counter).to.equal(0);
+
         expect(com.canExecuteFromFn).to.equal(false);
+
+        expect(counter).to.equal(1);
+
         expect(com.canExecuteCombined).to.equal(false);
+
+        expect(counter).to.equal(1);
+
         expect(com.isCanExecuteAsyncRunning).to.equal(false);
+
+        expect(counter).to.equal(1);
+    });
+
+    it('canExecute can be instructed to execute immediately', () => {
+
+        let counter = 0;
+
+        var com = command({
+            evaluateCanExecuteImmediately: true,
+            execute: () => {
+                return true;
+            },
+            canExecute: () => {
+                counter += 1;
+                return false;
+            }   
+        });
+
+        expect(counter).to.equal(1);
+
+        expect(com.canExecuteFromFn).to.equal(false);
+
+        expect(counter).to.equal(1);
+
+        expect(com.canExecuteCombined).to.equal(false);
+
+        expect(counter).to.equal(1);
+
+        expect(com.isCanExecuteAsyncRunning).to.equal(false);
+
+        expect(counter).to.equal(1);
     });
 
 
@@ -176,6 +221,37 @@ describe('command ', () => {
             },
             canExecute: () => { counter++; return prom; }
         });
+        
+        expect(counter).to.equal(0);
+
+        expect(com.canExecuteFromFn).to.equal(false);
+        expect(com.canExecuteCombined).to.equal(false);
+        expect(com.isCanExecuteAsyncRunning).to.equal(true);
+
+        resolver(true);
+
+        await delay();
+
+        expect(com.canExecuteFromFn).to.equal(true);
+        expect(counter).to.equal(1);
+        expect(com.isCanExecuteAsyncRunning).to.equal(false);
+    });
+
+    it('canExecute function, that returns a Promise<boolean>, can be set to execute immediately', async () => {
+
+        var resolver: any;
+        var prom = new Promise<boolean>((resolve) => { resolver = resolve; });
+        var counter = 0;
+
+        var com = command({
+            execute: () => {
+                return true;
+            },
+            canExecute: () => { counter++; return prom; },
+            evaluateCanExecuteImmediately: true
+        });
+        
+        expect(counter).to.equal(1);
 
         expect(com.canExecuteFromFn).to.equal(false);
         expect(com.canExecuteCombined).to.equal(false);
@@ -244,7 +320,7 @@ describe('command ', () => {
 
         }
         finally {
-            process.removeListener('unhandledRejection', incrementPromiseRejectionCounter);
+            setTimeout(() => process.removeListener('unhandledRejection', incrementPromiseRejectionCounter), 0);
         }
     });
 

@@ -23,8 +23,10 @@ class UserDetailsVm {
             let operationId = await userServiceClient.resetUserPasswrod(this.userId);
             return operationId;
         },
-        canExecute: () => userServiceClient.isAdminCurrentUser()
+        canExecute: () => userServiceClient.isAdminCurrentUser(),
     });
+    // canExecute is lazy
+    // if you wan't to trigger it immediately, pass evaluateCanExecuteImmediately: true 
 }
 
 let userDetailsVm = new UserDetailsVm();
