@@ -49,7 +49,7 @@ describe('command ', () => {
         var com = command({
             execute: () => {
                 counter += 1;
-            }, 
+            },
             canExecute: () => true
         });
 
@@ -60,7 +60,7 @@ describe('command ', () => {
 
     it('should pass parameters to original function', () => {
 
-        var com = command((d:number, e:number) => {
+        var com = command((d: number, e: number) => {
             expect(d).to.equal(1);
             expect(e).to.equal(2);
             return d + e;
@@ -92,10 +92,10 @@ describe('command ', () => {
         expect(com.canExecuteCombined).to.equal(false);
 
         let res = com.executeIfCan();
-       
+
         expect(counter).to.equal(0);
         expect(res).to.equal(undefined);
-       
+
         res = com.executeForced();
 
         expect(counter).to.equal(1);
@@ -106,7 +106,7 @@ describe('command ', () => {
         expect(com.canExecuteCombined).to.equal(true);
 
         res = com.executeIfCan();
-       
+
         expect(counter).to.equal(2);
         expect(res).to.equal(true);
     });
@@ -129,16 +129,16 @@ describe('command ', () => {
             }
         });
 
-        let executeIfCan =  com.executeIfCan;
+        let executeIfCan = com.executeIfCan;
         let executeForced = com.executeForced;
 
         expect(com.canExecuteCombined).to.equal(false);
 
         let res = executeIfCan();
-       
+
         expect(counter).to.equal(0);
         expect(res).to.equal(undefined);
-       
+
         res = executeForced();
 
         expect(counter).to.equal(1);
@@ -149,7 +149,7 @@ describe('command ', () => {
         expect(com.canExecuteCombined).to.equal(true);
 
         res = executeIfCan();
-       
+
         expect(counter).to.equal(2);
         expect(res).to.equal(true);
     });
@@ -206,7 +206,7 @@ describe('command ', () => {
             canExecute: () => {
                 counter += 1;
                 return false;
-            }   
+            }
         });
 
         expect(counter).to.equal(1);
@@ -237,7 +237,7 @@ describe('command ', () => {
             },
             canExecute: () => { counter++; return prom; }
         });
-        
+
         expect(counter).to.equal(0);
 
         expect(com.canExecuteFromFn).to.equal(false);
@@ -266,7 +266,7 @@ describe('command ', () => {
             canExecute: () => { counter++; return prom; },
             evaluateCanExecuteImmediately: true
         });
-        
+
         expect(counter).to.equal(1);
 
         expect(com.canExecuteFromFn).to.equal(false);
@@ -376,4 +376,52 @@ describe('command ', () => {
         expect(com.canExecuteFromFn).to.equal(true);
     });
 
+    it('command function promise rejection, is also used to track execution and set isExecuting', async () => {
+
+        var rejector: any;
+        var prom = new Promise<any>((resolve, reject) => { rejector = reject; });
+
+        let promisesRejectedCounter = 0;
+        const incrementPromiseRejectionCounter = () => promisesRejectedCounter += 1;
+        process.on('unhandledRejection', incrementPromiseRejectionCounter);
+
+        try {
+
+            var com = command({
+                execute: () => {
+                    return prom;
+                }
+            });
+
+            expect(com.isExecuting).to.equal(false);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(com.canExecuteFromFn).to.equal(true);
+
+            com.executeForced();
+
+            expect(com.isExecuting).to.equal(true);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(com.canExecuteFromFn).to.equal(true);
+
+            await delay();
+
+            expect(com.isExecuting).to.equal(true);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(com.canExecuteFromFn).to.equal(true);
+
+            rejector({});
+
+            await delay();
+
+            expect(com.isExecuting).to.equal(false);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(com.canExecuteFromFn).to.equal(true);
+        }
+        catch (ex) {
+
+        }
+        finally {
+            setTimeout(() => process.removeListener('unhandledRejection', incrementPromiseRejectionCounter), 0);
+        }
+    });
 });

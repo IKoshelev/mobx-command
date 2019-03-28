@@ -67,8 +67,10 @@ function setIsExecutingToFalse(
     if (isPromise(resultOrResultPromise)) {
 
         resultOrResultPromise.finally(() => {
-            commandState.isExecuting = false;
-        });
+            runInAction(()=> {
+                commandState.isExecuting = false;
+                });
+            });
         return;
     }
 
