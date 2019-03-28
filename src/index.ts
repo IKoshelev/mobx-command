@@ -1,8 +1,4 @@
-import { observable, autorun, action, runInAction, configure } from 'mobx';
-
-configure({
-    enforceActions: true
-});
+import { observable, autorun, action, runInAction } from 'mobx';
 
 declare global {
     interface Promise<T> {

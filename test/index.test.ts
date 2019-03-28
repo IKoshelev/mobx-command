@@ -1,8 +1,12 @@
 import * as mocha from 'mocha';
 import { expect } from 'chai';
-import { observable, runInAction } from 'mobx';
+import { observable, runInAction, configure } from 'mobx';
 
 import { command } from './../src/index';
+
+configure({
+    enforceActions: true
+});
 
 const delay = (ms: number = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
