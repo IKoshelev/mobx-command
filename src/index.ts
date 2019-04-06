@@ -11,6 +11,35 @@ if (!Promise.prototype.finally) {
         "You can shim it with packages like 'promise.prototype.finally' and '@types/promise.prototype.finally'.");
 }
 
+/**
+*  controlls when canExecute function will be ran for the first time
+*/
+export enum CanExecuteStartMode {
+    /**
+    *  run canExecute synchronously inside command
+    */
+    InsideCommandFunction = 1,
+    /**
+    *  DEFAULT, run canExecute via setTimeout(...,0) inside command
+    */
+    AsyncInsideCommandFunction = 2,
+    /**
+    *  canExecute will be run when one of relevant properties of command is accessed
+    *  Observers do not like this mode, since it is likely to alters state 
+    */
+    OnFirstCheck = 3,
+    /**
+    *  canExecute will be run via setTimeout(...,0) when one of relevant properties of command is accessed
+    *  Observers do not like this mode, since it is likely to alters state 
+    */
+   AsyncOnFirstCheck = 4,
+    /**
+    *  command does not start tracking canExecute (assuming false), 
+    *  untill forceInitCanExecuteTracking is called
+    */
+    Manual = 5
+}
+
 export type canExecuteResult = boolean | Promise<boolean>;
 
 export interface ICommand<T extends (...args: any[]) => unknown> {
@@ -22,12 +51,14 @@ export interface ICommand<T extends (...args: any[]) => unknown> {
 
     canExecuteFromFnRaw: canExecuteResult,
     executeForced: T
-    executeIfCan: (...p: Parameters<T>) => ReturnType<T> | undefined
+    executeIfCan: (...p: Parameters<T>) => ReturnType<T> | undefined,
+
+    forceInitCanExecuteTracking(): void
 }
 
 export interface ICommandOptions<T extends (...args: any[]) => unknown> {
     canExecute?: () => canExecuteResult,
-    evaluateCanExecuteImmediately?: boolean
+    canExecuteStartMode?: CanExecuteStartMode
     execute: T
 }
 
@@ -51,7 +82,7 @@ function normaliseOptions<T extends (...args: any[]) =>unknown,>(optionsOrFunc: 
 
     options.canExecute = cast.canExecute || (() => true);
 
-    options.evaluateCanExecuteImmediately = cast.evaluateCanExecuteImmediately;
+    options.canExecuteStartMode = cast.canExecuteStartMode || CanExecuteStartMode.AsyncInsideCommandFunction;
 
     return options;
 }
@@ -86,27 +117,27 @@ export const command = function <T extends (...args: any[]) => unknown>(optionsO
 
     var command = <ICommand<T>>{
         get canExecuteFromFn() {
-            initIfNotYet();
+            initIfModeOnFirstCheck();
             return commandState.canExecuteFromFn;
         },
-        get isExecuting() {            
-            initIfNotYet();
+        get isExecuting() {
+            initIfModeOnFirstCheck();         
             return commandState.isExecuting;
         },
-        get isCanExecuteAsyncRunning() {           
-            initIfNotYet();
+        get isCanExecuteAsyncRunning() {
+            initIfModeOnFirstCheck();          
             return commandState.isCanExecuteAsyncRunning;
         },
-        get canExecuteAsyncRejectReason() {            
-            initIfNotYet();
+        get canExecuteAsyncRejectReason() {
+            initIfModeOnFirstCheck();            
             return commandState.canExecuteAsyncRejectReason;
         },
-        get canExecuteCombined() {          
-            initIfNotYet();
+        get canExecuteCombined() { 
+            initIfModeOnFirstCheck();        
             return !commandState.isExecuting && commandState.canExecuteFromFn;
         },
-        get canExecuteFromFnRaw() {          
-            initIfNotYet();
+        get canExecuteFromFnRaw() {
+            initIfModeOnFirstCheck();        
             let resultOrResultPromise = (<() => canExecuteResult>options.canExecute)();
             return resultOrResultPromise;
         }
@@ -133,7 +164,6 @@ export const command = function <T extends (...args: any[]) => unknown>(optionsO
         }
         initDone = true;
         autorun(() => {
-
             let resultOrResultPromise = command.canExecuteFromFnRaw;
 
             runInAction(() => {
@@ -159,10 +189,40 @@ export const command = function <T extends (...args: any[]) => unknown>(optionsO
         });
     };
 
-    if(options.evaluateCanExecuteImmediately)
-    {
-        initIfNotYet();
+    function initIfModeOnFirstCheck(){
+        if (initDone) {
+            return;
+        }
+        switch(options.canExecuteStartMode){
+
+            case CanExecuteStartMode.OnFirstCheck:
+            initIfNotYet();
+            break;
+    
+            case CanExecuteStartMode.AsyncOnFirstCheck:
+            setTimeout(initIfNotYet, 0);
+            break;
+    
+            default:
+            break;        
+        }
     }
+
+    switch(options.canExecuteStartMode){
+
+        case CanExecuteStartMode.InsideCommandFunction:
+        initIfNotYet();
+        break;
+
+        case CanExecuteStartMode.AsyncInsideCommandFunction:
+        setTimeout(initIfNotYet, 0);
+        break;
+
+        default:
+        break;        
+    }
+
+    command.forceInitCanExecuteTracking = initIfNotYet;
 
     return <ICommand<T>>command;
 };

@@ -64,3 +64,41 @@ userDetailsVm.resetPassword.canExecuteAsyncRejectReason;
 //Raw computed from canExecute function, so you can subscribe to its recalculations, if needed
 userDetailsVm.resetPassword.canExecuteFromFnRaw;
 ```
+
+By default, canExecute tracking is started via a `setTimeoue(...,0)` inside `command` function. 
+Usually, commands are created inside a constructor, this avoids firing it while constructor is not finished.
+If you need a different start mode - you can pass in `canExecuteStartMode` with one of the following values:
+
+```typescript
+/**
+*  controlls when canExecute function will be ran for the first time
+*/
+export enum CanExecuteStartMode {
+    /**
+    *  run canExecute synchronously inside command
+    */
+    InsideCommandFunction = 1,
+    /**
+    *  DEFAULT, run canExecute via setTimeout(...,0) inside command
+    */
+    AsyncInsideCommandFunction = 2,
+    /**
+    *  canExecute will be run when one of relevant properties of command is accessed
+    *  Observers do not like this mode, since it is likely to alters state 
+    */
+    OnFirstCheck = 3,
+    /**
+    *  canExecute will be run via setTimeout(...,0) when one of relevant properties of command is accessed
+    *  Observers do not like this mode, since it is likely to alters state 
+    */
+   AsyncOnFirstCheck = 4,
+    /**
+    *  command does not start tracking canExecute (assuming false), 
+    *  untill forceInitCanExecuteTracking is called
+    */
+    Manual = 5
+}
+
+//in manual mode, you will have to explicityl start tracking:
+yourVm.commandInstance.forceInitCanExecuteTracking();
+```

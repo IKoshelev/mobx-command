@@ -2,7 +2,7 @@ import * as mocha from 'mocha';
 import { expect } from 'chai';
 import { observable, runInAction, configure } from 'mobx';
 
-import { command } from './../src/index';
+import { command, CanExecuteStartMode } from './../src/index';
 
 configure({
     enforceActions: true
@@ -90,7 +90,8 @@ describe('command ', () => {
             },
             canExecute: () => {
                 return trigger.canExecute;
-            }
+            },
+            canExecuteStartMode: CanExecuteStartMode.OnFirstCheck
         });
 
         expect(com.canExecuteCombined).to.equal(false);
@@ -130,7 +131,8 @@ describe('command ', () => {
             },
             canExecute: () => {
                 return trigger.canExecute;
-            }
+            },
+            canExecuteStartMode: CanExecuteStartMode.OnFirstCheck
         });
 
         let executeIfCan = com.executeIfCan;
@@ -160,8 +162,11 @@ describe('command ', () => {
 
     it('when canExecute is not passed, default is always true', () => {
 
-        var com = command(() => {
-            return true;
+        var com = command({
+            execute: () => {
+                return true;
+            },
+            canExecuteStartMode: CanExecuteStartMode.OnFirstCheck
         });
 
         expect(com.canExecuteFromFn).to.equal(true);
@@ -169,65 +174,90 @@ describe('command ', () => {
         expect(com.isCanExecuteAsyncRunning).to.equal(false);
     });
 
-    it('when canExecute function is passed, it is used, lazily', () => {
+    it('command function can return a promise, which will be used to track execution and set isExecuting', async () => {
 
-        let counter = 0;
+        var resolver: any;
+        var prom = new Promise<any>((resolve) => { resolver = resolve; });
 
         var com = command({
             execute: () => {
-                return true;
-            },
-            canExecute: () => {
-                counter += 1;
-                return false;
+                return prom;
             }
         });
 
-        expect(counter).to.equal(0);
-
+        expect(com.isExecuting).to.equal(false);
+        expect(com.canExecuteCombined).to.equal(false);
         expect(com.canExecuteFromFn).to.equal(false);
 
-        expect(counter).to.equal(1);
+        com.executeForced();
 
+        expect(com.isExecuting).to.equal(true);
         expect(com.canExecuteCombined).to.equal(false);
-
-        expect(counter).to.equal(1);
-
-        expect(com.isCanExecuteAsyncRunning).to.equal(false);
-
-        expect(counter).to.equal(1);
-    });
-
-    it('canExecute can be instructed to execute immediately', () => {
-
-        let counter = 0;
-
-        var com = command({
-            evaluateCanExecuteImmediately: true,
-            execute: () => {
-                return true;
-            },
-            canExecute: () => {
-                counter += 1;
-                return false;
-            }
-        });
-
-        expect(counter).to.equal(1);
-
         expect(com.canExecuteFromFn).to.equal(false);
 
-        expect(counter).to.equal(1);
+        await delay();
 
+        expect(com.isExecuting).to.equal(true);
         expect(com.canExecuteCombined).to.equal(false);
+        expect(com.canExecuteFromFn).to.equal(true);
 
-        expect(counter).to.equal(1);
+        resolver({});
 
-        expect(com.isCanExecuteAsyncRunning).to.equal(false);
+        await delay();
 
-        expect(counter).to.equal(1);
+        expect(com.isExecuting).to.equal(false);
+        expect(com.canExecuteCombined).to.equal(true);
+        expect(com.canExecuteFromFn).to.equal(true);
     });
 
+    it('command function promise rejection is also used to track execution and set isExecuting', async () => {
+
+        var rejector: any;
+        var prom = new Promise<any>((resolve, reject) => { rejector = reject; });
+
+        let promisesRejectedCounter = 0;
+        const incrementPromiseRejectionCounter = () => promisesRejectedCounter += 1;
+        process.on('unhandledRejection', incrementPromiseRejectionCounter);
+
+        try {
+
+            var com = command({
+                execute: () => {
+                    return prom;
+                }
+            });
+
+            expect(com.isExecuting).to.equal(false);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(com.canExecuteFromFn).to.equal(true);
+
+            com.executeForced();
+
+            expect(com.isExecuting).to.equal(true);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(com.canExecuteFromFn).to.equal(true);
+
+            await delay();
+
+            expect(com.isExecuting).to.equal(true);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(com.canExecuteFromFn).to.equal(true);
+
+            rejector({});
+
+            await delay();
+
+            expect(com.isExecuting).to.equal(false);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(com.canExecuteFromFn).to.equal(true);
+        }
+        catch (ex) {
+
+        }
+        finally {
+            setTimeout(() => process.removeListener('unhandledRejection', incrementPromiseRejectionCounter), 0);
+        }
+    });
 
     it('canExecute function can return a Promise<boolean>', async () => {
 
@@ -246,6 +276,12 @@ describe('command ', () => {
 
         expect(com.canExecuteFromFn).to.equal(false);
         expect(com.canExecuteCombined).to.equal(false);
+        expect(com.isCanExecuteAsyncRunning).to.equal(false);
+
+        await delay();
+
+        expect(com.canExecuteFromFn).to.equal(false);
+        expect(com.canExecuteCombined).to.equal(false);
         expect(com.isCanExecuteAsyncRunning).to.equal(true);
 
         resolver(true);
@@ -257,7 +293,7 @@ describe('command ', () => {
         expect(com.isCanExecuteAsyncRunning).to.equal(false);
     });
 
-    it('canExecute function, that returns a Promise<boolean>, can be set to execute immediately', async () => {
+    it('canExecute function, that returns a Promise<boolean>, can be set to execute immediately via canExecuteStartMode: CanExecuteStartMode.InsideCommandFunction', async () => {
 
         var resolver: any;
         var prom = new Promise<boolean>((resolve) => { resolver = resolve; });
@@ -268,7 +304,7 @@ describe('command ', () => {
                 return true;
             },
             canExecute: () => { counter++; return prom; },
-            evaluateCanExecuteImmediately: true
+            canExecuteStartMode: CanExecuteStartMode.InsideCommandFunction,
         });
 
         expect(counter).to.equal(1);
@@ -344,88 +380,227 @@ describe('command ', () => {
         }
     });
 
-    it('command function can return a promise, which will be used to track execution and set isExecuting', async () => {
+    describe('canExecuteStartMode can be passed to control, when canExecute function is first run and tracking starts;', () => {
 
-        var resolver: any;
-        var prom = new Promise<any>((resolve) => { resolver = resolve; });
+        it('CanExecuteStartMode.InsideCommandFunction will run canExecute immediately inside "command" function', () => {
 
-        var com = command({
-            execute: () => {
-                return prom;
-            }
-        });
-
-        expect(com.isExecuting).to.equal(false);
-        expect(com.canExecuteCombined).to.equal(true);
-        expect(com.canExecuteFromFn).to.equal(true);
-
-        com.executeForced();
-
-        expect(com.isExecuting).to.equal(true);
-        expect(com.canExecuteCombined).to.equal(false);
-        expect(com.canExecuteFromFn).to.equal(true);
-
-        await delay();
-
-        expect(com.isExecuting).to.equal(true);
-        expect(com.canExecuteCombined).to.equal(false);
-        expect(com.canExecuteFromFn).to.equal(true);
-
-        resolver({});
-
-        await delay();
-
-        expect(com.isExecuting).to.equal(false);
-        expect(com.canExecuteCombined).to.equal(true);
-        expect(com.canExecuteFromFn).to.equal(true);
-    });
-
-    it('command function promise rejection, is also used to track execution and set isExecuting', async () => {
-
-        var rejector: any;
-        var prom = new Promise<any>((resolve, reject) => { rejector = reject; });
-
-        let promisesRejectedCounter = 0;
-        const incrementPromiseRejectionCounter = () => promisesRejectedCounter += 1;
-        process.on('unhandledRejection', incrementPromiseRejectionCounter);
-
-        try {
+            let counter = 0;
 
             var com = command({
+                canExecuteStartMode: CanExecuteStartMode.InsideCommandFunction,
                 execute: () => {
-                    return prom;
+                    return true;
+                },
+                canExecute: () => {
+                    counter += 1;
+                    return false;
                 }
             });
 
-            expect(com.isExecuting).to.equal(false);
-            expect(com.canExecuteCombined).to.equal(true);
-            expect(com.canExecuteFromFn).to.equal(true);
+            expect(counter).to.equal(1);
 
-            com.executeForced();
+            expect(com.canExecuteFromFn).to.equal(false);
 
-            expect(com.isExecuting).to.equal(true);
+            expect(counter).to.equal(1);
+
             expect(com.canExecuteCombined).to.equal(false);
-            expect(com.canExecuteFromFn).to.equal(true);
+
+            expect(counter).to.equal(1);
+
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+
+            expect(counter).to.equal(1);
+        });
+
+        it('CanExecuteStartMode.AsyncInsideCommandFunction will run canExecute in closest available event loop slot', async () => {
+
+            let counter = 0;
+
+            var com = command({
+                canExecuteStartMode: CanExecuteStartMode.AsyncInsideCommandFunction,
+                execute: () => {
+                    return true;
+                },
+                canExecute: () => {
+                    counter += 1;
+                    return true;
+                }
+            });
+
+            expect(counter).to.equal(0);
+            expect(com.canExecuteFromFn).to.equal(false);
+            expect(counter).to.equal(0);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(counter).to.equal(0);
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+            expect(counter).to.equal(0);
 
             await delay();
 
-            expect(com.isExecuting).to.equal(true);
-            expect(com.canExecuteCombined).to.equal(false);
+            expect(counter).to.equal(1);
             expect(com.canExecuteFromFn).to.equal(true);
+            expect(counter).to.equal(1);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(counter).to.equal(1);
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+            expect(counter).to.equal(1);
+        });
 
-            rejector({});
+        it('CanExecuteStartMode.AsyncInsideCommandFunction is default', async () => {
+
+            let counter = 0;
+
+            var com = command({
+                execute: () => {
+                    return true;
+                },
+                canExecute: () => {
+                    counter += 1;
+                    return true;
+                }
+            });
+
+            expect(counter).to.equal(0);
+            expect(com.canExecuteFromFn).to.equal(false);
+            expect(counter).to.equal(0);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(counter).to.equal(0);
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+            expect(counter).to.equal(0);
 
             await delay();
 
-            expect(com.isExecuting).to.equal(false);
-            expect(com.canExecuteCombined).to.equal(true);
+            expect(counter).to.equal(1);
             expect(com.canExecuteFromFn).to.equal(true);
-        }
-        catch (ex) {
+            expect(counter).to.equal(1);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(counter).to.equal(1);
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+            expect(counter).to.equal(1);
+        });
 
-        }
-        finally {
-            setTimeout(() => process.removeListener('unhandledRejection', incrementPromiseRejectionCounter), 0);
-        }
+        it('CanExecuteStartMode.OnFirstCheck will run canExecute when one of the relevant properties is accessed', () => {
+
+            let counter = 0;
+
+            var com = command({
+                execute: () => {
+                    return true;
+                },
+                canExecute: () => {
+                    counter += 1;
+                    return false;
+                },
+                canExecuteStartMode: CanExecuteStartMode.OnFirstCheck
+            });
+
+            expect(counter).to.equal(0);
+
+            expect(com.canExecuteFromFn).to.equal(false);
+
+            expect(counter).to.equal(1);
+
+            expect(com.canExecuteCombined).to.equal(false);
+
+            expect(counter).to.equal(1);
+
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+
+            expect(counter).to.equal(1);
+        });
+
+        it('CanExecuteStartMode.AsyncOnFirstCheck will run canExecute on first access of a relevant property in closest available event loop slot', async () => {
+
+            let counter = 0;
+
+            var com = command({
+                canExecuteStartMode: CanExecuteStartMode.AsyncOnFirstCheck,
+                execute: () => {
+                    return true;
+                },
+                canExecute: () => {
+                    counter += 1;
+                    return true;
+                }
+            });
+
+            expect(counter).to.equal(0);
+
+            await delay();
+
+            expect(counter).to.equal(0);
+            expect(com.canExecuteFromFn).to.equal(false);
+            expect(counter).to.equal(0);
+            expect(com.canExecuteCombined).to.equal(false);
+            expect(counter).to.equal(0);
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+            expect(counter).to.equal(0);
+
+            await delay();
+
+            expect(counter).to.equal(1);
+            expect(com.canExecuteFromFn).to.equal(true);
+            expect(counter).to.equal(1);
+            expect(com.canExecuteCombined).to.equal(true);
+            expect(counter).to.equal(1);
+            expect(com.isCanExecuteAsyncRunning).to.equal(false);
+            expect(counter).to.equal(1);
+        });
+
+        it('CanExecuteStartMode.Manual will keep canExecuteFromFn false and canExecute wont run untill ' +
+            'commandInstance.forceInitCanExecuteTracking is called', async () => {
+
+                var resolver: any;
+                var prom = new Promise<boolean>((resolve) => { resolver = resolve; });
+                var counter = 0;
+
+                var com = command({
+                    execute: () => {
+                        return true;
+                    },
+                    canExecute: () => { counter++; return prom; },
+                    canExecuteStartMode: CanExecuteStartMode.Manual,
+                });
+
+                expect(counter).to.equal(0);
+                expect(com.canExecuteFromFn).to.equal(false);
+                expect(counter).to.equal(0);
+                expect(com.canExecuteCombined).to.equal(false);
+                expect(counter).to.equal(0);
+                expect(com.isCanExecuteAsyncRunning).to.equal(false);
+                expect(counter).to.equal(0);
+
+                await delay();
+
+                expect(counter).to.equal(0);
+                expect(com.canExecuteFromFn).to.equal(false);
+                expect(counter).to.equal(0);
+                expect(com.canExecuteCombined).to.equal(false);
+                expect(counter).to.equal(0);
+                expect(com.isCanExecuteAsyncRunning).to.equal(false);
+                expect(counter).to.equal(0);
+
+                com.forceInitCanExecuteTracking();
+
+                expect(counter).to.equal(1);
+                expect(com.canExecuteFromFn).to.equal(false);
+                expect(counter).to.equal(1);
+                expect(com.canExecuteCombined).to.equal(false);
+                expect(counter).to.equal(1);
+                expect(com.isCanExecuteAsyncRunning).to.equal(true);
+                expect(counter).to.equal(1);
+
+                resolver(true);
+
+                await delay();
+
+                expect(counter).to.equal(1);
+                expect(com.canExecuteFromFn).to.equal(true);
+                expect(counter).to.equal(1);
+                expect(com.canExecuteCombined).to.equal(true);
+                expect(counter).to.equal(1);
+                expect(com.isCanExecuteAsyncRunning).to.equal(false);
+                expect(counter).to.equal(1);
+            });
     });
 });
