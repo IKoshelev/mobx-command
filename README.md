@@ -99,6 +99,6 @@ export enum CanExecuteStartMode {
     Manual = 5
 }
 
-//in manual mode, you will have to explicityl start tracking:
+//in manual mode, you will have to explicitly start tracking:
 yourVm.commandInstance.forceInitCanExecuteTracking();
 ```
